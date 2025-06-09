@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI eBay Listing Generator</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>AI eBay Listing Generator</h1>
+            <p class="header__subtitle">Upload product images and generate professional eBay listings using AI analysis</p>
+        </header>
+
+        <main class="main">
+            <!-- Image Upload Section -->
+            <section class="card upload-section">
+                <div class="card__body">
+                    <h2>1. Upload Product Images</h2>
+                    <div class="upload-area" id="uploadArea">
+                        <div class="upload-area__content">
+                            <div class="upload-icon">📷</div>
+                            <p class="upload-text">Drag and drop images here or click to select</p>
+                            <p class="upload-subtext">Supports JPG, PNG, WEBP (max 20MB each)</p>
+                        </div>
+                        <input type="file" id="fileInput" multiple accept="image/jpeg,image/png,image/webp" class="upload-input">
+                    </div>
+                    <div class="image-preview" id="imagePreview"></div>
+                </div>
+            </section>
+
+            <!-- API Configuration Section -->
+            <section class="card config-section">
+                <div class="card__body">
+                    <h2>2. API Configuration</h2>
+                    <div class="form-group">
+                        <label for="apiKey" class="form-label">Gemini API Key</label>
+                        <input type="password" id="apiKey" class="form-control" value="AIzaSyDAF9YRd_c4ze5mtZttSyn5uijQYDnXPlg" placeholder="Enter your Gemini API key">
+                    </div>
+                    <div class="form-group">
+                        <label for="modelSelect" class="form-label">AI Model</label>
+                        <select id="modelSelect" class="form-control">
+                            <option value="gemini-2.0-flash-exp">Gemini 2.0 Flash (Recommended)</option>
+                            <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
+                            <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
+                        </select>
+                    </div>
+                    <div class="connection-status" id="connectionStatus">
+                        <span class="status status--info">Ready to analyze</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Analysis Section -->
+            <section class="card analysis-section">
+                <div class="card__body">
+                    <h2>3. AI Analysis</h2>
+                    <button id="analyzeBtn" class="btn btn--primary btn--full-width" disabled>
+                        <span class="btn-text">Analyze Images</span>
+                        <div class="loader hidden" id="analysisLoader"></div>
+                    </button>
+                    <div class="progress-feedback" id="progressFeedback"></div>
+                </div>
+            </section>
+
+            <!-- Results Section -->
+            <section class="card results-section hidden" id="resultsSection">
+                <div class="card__body">
+                    <h2>4. Generated eBay Listing</h2>
+                    
+                    <!-- Title Section -->
+                    <div class="result-group">
+                        <div class="result-header">
+                            <h3>eBay Title</h3>
+                            <button class="btn btn--sm btn--outline copy-btn" data-copy="title">Copy</button>
+                        </div>
+                        <div class="result-content" id="generatedTitle">
+                            <p class="placeholder-text">Title will appear here...</p>
+                        </div>
+                    </div>
+
+                    <!-- Specifications Section -->
+                    <div class="result-group">
+                        <div class="result-header">
+                            <h3>Product Specifications</h3>
+                            <button class="btn btn--sm btn--outline copy-btn" data-copy="specs">Copy</button>
+                        </div>
+                        <div class="result-content" id="generatedSpecs">
+                            <p class="placeholder-text">Specifications table will appear here...</p>
+                        </div>
+                    </div>
+
+                    <!-- Description Section -->
+                    <div class="result-group">
+                        <div class="result-header">
+                            <h3>Product Description</h3>
+                            <button class="btn btn--sm btn--outline copy-btn" data-copy="description">Copy</button>
+                        </div>
+                        <div class="result-content" id="generatedDescription">
+                            <p class="placeholder-text">Description will appear here...</p>
+                        </div>
+                    </div>
+
+                    <!-- Complete HTML Section -->
+                    <div class="result-group">
+                        <div class="result-header">
+                            <h3>Complete HTML Listing</h3>
+                            <div class="result-actions">
+                                <button class="btn btn--sm btn--outline copy-btn" data-copy="html">Copy HTML</button>
+                                <button class="btn btn--sm btn--secondary" id="downloadBtn">Download</button>
+                            </div>
+                        </div>
+                        <div class="result-content">
+                            <textarea class="html-output" id="generatedHTML" readonly placeholder="Complete HTML listing will appear here..."></textarea>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Toast Notification -->
+        <div class="toast hidden" id="toast">
+            <span class="toast-message" id="toastMessage"></span>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
