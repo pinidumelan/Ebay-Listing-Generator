@@ -21,6 +21,14 @@ const CONFIG = {
     supportedFormats: ['image/jpeg', 'image/png', 'image/webp'],
     geminiEndpoint: 'https://generativelanguage.googleapis.com/v1beta/models/',
     apiKey: 'AIzaSyCZWFYD-sULvz6mGUJA-WA5RiKffNl6sfw',
+    // Client-side image compression settings
+    imageCompression: {
+        maxDimension: 1600, // px, longest side
+        quality: 0.8,       // 0..1 for JPEG/WEBP
+        outputType: 'image/jpeg' // convert to JPEG for best size savings
+    },
+    // eBay description character limit
+    descriptionMaxChars: 500000,
     promptTemplate: `Analyze this product image and provide detailed information in JSON format with the following fields:
     - productName: specific product name
     - brand: manufacturer/brand name
@@ -83,7 +91,7 @@ function handleDragLeave(e) { e.preventDefault(); uploadArea.classList.remove('d
 function handleDrop(e) { e.preventDefault(); uploadArea.classList.remove('dragover'); processFiles(Array.from(e.dataTransfer.files)); }
 function handleFileSelect(e) { processFiles(Array.from(e.target.files)); }
 
-function processFiles(files) {
+async function processFiles(files) {
     const validFiles = files.filter(file => {
         if (!CONFIG.supportedFormats.includes(file.type)) {
             showToast(`${file.name} is not a supported format`, 'error');
@@ -95,22 +103,24 @@ function processFiles(files) {
         }
         return true;
     });
-    validFiles.forEach(file => {
-        const reader = new FileReader();
-        reader.onload = function(e) {
+    for (const file of validFiles) {
+        try {
+            const compressed = await compressImageFile(file, CONFIG.imageCompression);
             uploadedImages.push({
                 id: Date.now() + Math.random(),
                 file: file,
                 name: file.name,
-                size: file.size,
-                base64: e.target.result,
-                type: file.type
+                size: compressed.sizeBytes,
+                base64: compressed.dataUrl,
+                type: compressed.mimeType
             });
             renderImagePreview();
             document.dispatchEvent(new Event('imagesChanged'));
-        };
-        reader.readAsDataURL(file);
-    });
+        } catch (err) {
+            console.error('Compression failed:', err);
+            showToast(`Failed to process ${file.name}`, 'error');
+        }
+    }
 }
 
 function renderImagePreview() {
@@ -171,7 +181,8 @@ function generateEbayListing(data) {
     document.getElementById('generatedTitle').innerHTML = `<p><strong>${title}</strong></p>`;
     const specsHtml = generateSpecsTable(data.specifications, data);
     document.getElementById('generatedSpecs').innerHTML = specsHtml;
-    const description = data.description || generateFallbackDescription(data);
+    const rawDescription = data.description || generateFallbackDescription(data);
+    const description = truncateToLength(String(rawDescription), CONFIG.descriptionMaxChars);
     document.getElementById('generatedDescription').innerHTML = `<p>${description}</p>`;
     const completeHtml = generateCompleteHTML(title, specsHtml, description, data);
     document.getElementById('generatedHTML').value = completeHtml;
@@ -243,6 +254,80 @@ function generateCompleteHTML(title, specsHtml, description, data) {
 
 // Utility functions
 function escapeHtml(text) { const div = document.createElement('div'); div.textContent = text; return div.innerHTML; }
+
+function truncateToLength(text, maxChars) {
+    if (!Number.isFinite(maxChars) || maxChars <= 0) return '';
+    if (text.length <= maxChars) return text;
+    return text.slice(0, maxChars);
+}
+
+function readFileAsDataURL(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+    });
+}
+
+function loadImage(dataUrl) {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = reject;
+        img.src = dataUrl;
+    });
+}
+
+function estimateBase64SizeBytes(dataUrl) {
+    const base64 = String(dataUrl).split(',')[1] || '';
+    return Math.floor(base64.length * 0.75);
+}
+
+async function compressImageFile(file, options) {
+    const { maxDimension, quality, outputType } = options || {};
+    // Read original image
+    const dataUrl = await readFileAsDataURL(file);
+    const img = await loadImage(dataUrl);
+
+    // Compute target dimensions while preserving aspect ratio
+    const originalWidth = img.naturalWidth || img.width;
+    const originalHeight = img.naturalHeight || img.height;
+    let targetWidth = originalWidth;
+    let targetHeight = originalHeight;
+    const longest = Math.max(originalWidth, originalHeight);
+    if (Number.isFinite(maxDimension) && longest > maxDimension) {
+        const scale = maxDimension / longest;
+        targetWidth = Math.round(originalWidth * scale);
+        targetHeight = Math.round(originalHeight * scale);
+    }
+
+    // Draw to canvas
+    const canvas = document.createElement('canvas');
+    canvas.width = targetWidth;
+    canvas.height = targetHeight;
+    const ctx = canvas.getContext('2d');
+
+    // For JPEG conversion, paint white background to avoid black for transparent PNG
+    if ((outputType || '').includes('jpeg') || (outputType || '').includes('jpg')) {
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, targetWidth, targetHeight);
+    }
+    ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
+
+    // Export compressed
+    const mimeType = outputType || file.type || 'image/jpeg';
+    const q = typeof quality === 'number' ? Math.min(1, Math.max(0, quality)) : 0.8;
+    const compressedDataUrl = canvas.toDataURL(mimeType, q);
+
+    return {
+        dataUrl: compressedDataUrl,
+        mimeType,
+        sizeBytes: estimateBase64SizeBytes(compressedDataUrl),
+        width: targetWidth,
+        height: targetHeight
+    };
+}
 
 async function copyToClipboard(text, button) {
     try { await navigator.clipboard.writeText(text); button.classList.add('copied'); showToast('Copied to clipboard!', 'success'); setTimeout(() => { button.classList.remove('copied'); }, 2000); }
