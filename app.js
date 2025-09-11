@@ -23,8 +23,8 @@ const CONFIG = {
     apiKey: 'AIzaSyCZWFYD-sULvz6mGUJA-WA5RiKffNl6sfw',
     // Client-side image compression settings
     imageCompression: {
-        maxDimension: 1600, // px, longest side
-        quality: 0.8,       // 0..1 for JPEG/WEBP
+        maxDimension: 500, // px, longest side
+        quality: 0.5,       // 0..1 for JPEG/WEBP
         outputType: 'image/jpeg' // convert to JPEG for best size savings
     },
     // eBay description character limit
