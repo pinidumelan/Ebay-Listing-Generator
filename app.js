@@ -192,16 +192,49 @@ function generateEbayListing(data) {
 }
 
 function generateSpecsTable(specs, data) {
-    if (!specs || typeof specs !== 'object') {
-        specs = { 'Brand': data.brand || 'N/A', 'Condition': data.condition || 'Used', 'Category': data.category || 'Other' };
+  // Fallback
+  if (!specs || typeof specs !== 'object') {
+    specs = {
+      Brand: data.brand || 'N/A',
+      Condition: data.condition || 'Used',
+      Category: data.category || 'Other'
+    };
+  }
+
+  // Flatten simple nested objects/arrays -> strings
+  const flat = {};
+  const toTitle = s => String(s)
+    .replace(/[_\-]+/g, ' ')
+    .replace(/\b([a-z])/g, m => m.toUpperCase())
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  const coerce = v => {
+    if (v == null) return '—';
+    if (Array.isArray(v)) return v.map(coerce).join(', ');
+    if (typeof v === 'object') {
+      // one level flatten
+      return Object.entries(v).map(([k, val]) => `${toTitle(k)}: ${coerce(val)}`).join('; ');
     }
-    const rows = Object.entries(specs).map(([key, value]) => `<tr><th>${escapeHtml(key)}</th><td>${escapeHtml(String(value))}</td></tr>`).join('');
-    return `<table class="specs-table">
-        <thead>
-            <tr><th>Specification</th><th>Details</th></tr>
-        </thead>
-        <tbody>${rows}</tbody>
-    </table>`;
+    return String(v);
+  };
+
+  Object.entries(specs).forEach(([k, v]) => {
+    flat[toTitle(k)] = coerce(v);
+  });
+
+  const rows = Object.entries(flat)
+    .filter(([, v]) => String(v).trim().length > 0)
+    .map(([k, v]) =>
+      `<tr><th>${escapeHtml(k)}</th><td>${escapeHtml(String(v))}</td></tr>`
+    ).join('');
+
+  return `
+    <table class="specs-table">
+      <thead><tr><th>Specification</th><th>Details</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+  `;
 }
 
 function generateFallbackDescription(data) {
@@ -212,42 +245,136 @@ function generateFallbackDescription(data) {
     return parts.join('. ') || 'Quality product in good condition.';
 }
 
+function buildBadges(data) {
+  const badges = [];
+  if (data.brand) badges.push({ label: 'Brand', value: data.brand });
+  if (data.condition) badges.push({ label: 'Condition', value: data.condition });
+  if (data.category) badges.push({ label: 'Category', value: data.category });
+  return badges.map(b => `<span class="badge">${escapeHtml(b.label)}: ${escapeHtml(String(b.value))}</span>`).join('');
+}
+
+function buildFeatures(data) {
+  if (Array.isArray(data.keyFeatures) && data.keyFeatures.length) {
+    return `<ul class="features-list">
+      ${data.keyFeatures.map(f => `<li>${escapeHtml(String(f))}</li>`).join('')}
+    </ul>`;
+  }
+  return '';
+}
+
+function firstImageHtml() {
+  if (typeof uploadedImages === 'undefined' || !uploadedImages.length) return '';
+  const first = uploadedImages[0];
+  return `<img alt="Product image" src="${first.base64}" class="hero-img">`;
+}
+
+function galleryHtml() {
+  if (typeof uploadedImages === 'undefined' || uploadedImages.length <= 1) return '';
+  const thumbs = uploadedImages.slice(1).map((img, i) =>
+    `<img alt="Gallery image ${i+2}" src="${img.base64}" class="gallery-img">`
+  ).join('');
+  return `<div class="gallery">${thumbs}</div>`;
+}
+
 function generateCompleteHTML(title, specsHtml, description, data) {
-    const imageElements = uploadedImages.map((img, index) => 
-        `<img src="${img.base64}" alt="Product Image ${index + 1}" style="max-width: 100%; height: auto; margin: 10px 0; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">`
-    ).join('\n');
-    return `<!DOCTYPE html>
+  const badges = buildBadges(data);
+  const features = buildFeatures(data);
+  const hero = firstImageHtml();
+  const gallery = galleryHtml();
+
+  // Safe short subtitle
+  const subtitleParts = [
+    data.productName && data.brand ? `${data.brand} ${data.productName}` : '',
+    data.category || '',
+  ].filter(Boolean);
+  const subtitle = subtitleParts.join(' · ');
+
+  return `<!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>${escapeHtml(title)}</title>
-    <style>
-        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; line-height: 1.6; }
-        .listing-header { text-align: center; margin-bottom: 30px; }
-        .listing-title { color: #333; font-size: 24px; font-weight: bold; margin-bottom: 20px; }
-        .product-images { text-align: center; margin: 20px 0; }
-        .specs-section { margin: 30px 0; }
-        .description-section { margin: 30px 0; }
-        .specs-table { width: 100%; border-collapse: collapse; margin: 20px 0; }
-        .specs-table th, .specs-table td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
-        .specs-table th { background-color: #f5f5f5; font-weight: bold; }
-        .section-title { color: #333; font-size: 18px; font-weight: bold; margin: 20px 0 10px 0; border-bottom: 2px solid #007ebf; padding-bottom: 5px; }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${escapeHtml(title)}</title>
+<style>
+  :root{
+    --bg:#0b1220; --card:#ffffff; --ink:#0f172a; --muted:#475569;
+    --accent:#0ea5e9; --accent-ink:#ffffff; --line:#e5e7eb;
+    --chip-bg:#e6f0ff; --chip-ink:#003f91;
+  }
+  body{margin:0;padding:0;background:#f8fafc;color:var(--ink);font:14px/1.55 -apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Inter,Arial,sans-serif}
+  .wrap{max-width:980px;margin:0 auto;padding:16px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:0 1px 2px rgba(0,0,0,.04);overflow:hidden}
+  .header{padding:18px 16px 0}
+  h1{font-size:22px;margin:0 0 6px}
+  .subtitle{color:var(--muted);margin:0 0 10px}
+  .badges{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 0}
+  .badge{background:var(--chip-bg);color:var(--chip-ink);border:1px solid #cfe0ff;padding:6px 10px;border-radius:999px;font-size:12px}
+  .hero{padding:0 16px 16px}
+  .hero-img{width:100%;height:auto;display:block;border-radius:12px;background:#f1f5f9}
+  .section{padding:16px;border-top:1px solid var(--line)}
+  .section h2{font-size:18px;margin:0 0 10px}
+  .lead{color:var(--ink)}
+  .features-list{padding-left:18px;margin:0}
+  .features-list li{margin:6px 0}
+  .specs-table{width:100%;border-collapse:collapse;font-size:14px}
+  .specs-table thead th{background:#f8fafc}
+  .specs-table th,.specs-table td{border:1px solid var(--line);padding:10px;text-align:left;vertical-align:top}
+  .gallery{display:flex;flex-wrap:wrap;gap:10px;margin-top:8px}
+  .gallery-img{width:220px;height:auto;border:1px solid var(--line);border-radius:10px;background:#f8fafc}
+  .note{font-size:12px;color:#334155}
+  .cta{background:var(--accent);color:var(--accent-ink);padding:12px 16px;border-radius:10px;text-align:center;font-weight:600}
+  .grid{display:grid;gap:12px}
+  @media (min-width:720px){ .grid.cols-2{grid-template-columns:1fr 1fr} }
+</style>
 </head>
 <body>
-    <div class="listing-header">
-        <h1 class="listing-title">${escapeHtml(title)}</h1>
-    </div>
-    <div class="product-images">${imageElements}</div>
-    <div class="specs-section">
-        <h2 class="section-title">Product Specifications</h2>
+  <div class="wrap">
+    <div class="card">
+      <div class="header">
+        <h1>${escapeHtml(title)}</h1>
+        ${subtitle ? `<p class="subtitle">${escapeHtml(subtitle)}</p>` : ''}
+        <div class="badges">${badges}</div>
+      </div>
+
+      <div class="hero">${hero}</div>
+
+      <div class="section">
+        <h2>Overview</h2>
+        <p class="lead">${escapeHtml(description)}</p>
+        ${features ? `<h2 style="margin-top:14px">Key Features</h2>${features}` : ''}
+      </div>
+
+      <div class="section">
+        <h2>Specifications</h2>
         ${specsHtml}
+        ${gallery}
+      </div>
+
+      <div class="section grid cols-2">
+        <div>
+          <h2>What’s Included</h2>
+          <ul class="features-list">
+            <li>Main product as pictured</li>
+            <li>Any accessories shown (unless stated otherwise)</li>
+            <li>Secure packaging</li>
+          </ul>
+        </div>
+        <div>
+          <h2>Shipping & Returns</h2>
+          <ul class="features-list">
+            <li>Fast dispatch within 1–2 business days</li>
+            <li>Tracked shipping</li>
+            <li>30-day returns (buyer pays return postage unless DOA)</li>
+          </ul>
+          <p class="note">Questions? Message us via eBay—happy to help.</p>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="cta">Buy with confidence — Trusted seller, responsive support</div>
+      </div>
     </div>
-    <div class="description-section">
-        <h2 class="section-title">Description</h2>
-        <p>${escapeHtml(description)}</p>
-    </div>
+  </div>
 </body>
 </html>`;
 }
